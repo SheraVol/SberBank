@@ -1,9 +1,16 @@
 package org.example;
 
+import Mail.Endcardml;
+import Mapper.MainMapper;
+import Mapper.MainMapperCard;
+import model.BankCard;
+import model.Client;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.io.FileWriter;
+import java.io.IOException;
 import java.sql.*;
 import java.util.Date;
 import java.util.HashMap;
@@ -15,7 +22,8 @@ import java.util.*;
 @Component
 public class Main {
     private static JdbcTemplate jdbcTemplate;
-    private int clientNumber;
+    private static FileWriter writer;
+
 
     @Autowired
     public Main(JdbcTemplate jdbcTemplate){
@@ -25,6 +33,7 @@ public class Main {
     private static final String user = "root";
     private static final String password = "OkaRuto24!";
     private static Connection connection;
+
     static {
         try {
             connection = DriverManager.getConnection(url, user, password);
@@ -33,7 +42,10 @@ public class Main {
         }
     }
 
-    public static void main(String[] args) throws SQLException {
+
+    public static void main(String[] args) throws SQLException, IOException {
+
+
         Scanner scanner = new Scanner(System.in);
         SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy");
         Map<Integer, Client> clientCache = new HashMap<>();
@@ -41,25 +53,46 @@ public class Main {
         Map<Integer, BankCard> cardsCache = new HashMap<>();
 
 
+try {
+    writer = new FileWriter("ut.txt");
+    Endcardml endl = new Endcardml(connection,writer);
+    endl.start();
+} catch (IOException e) {
+    throw new RuntimeException(e);
+}
+
+        String delcardst = "SELECT * FROM bank_cards WHERE expiry_date < NOW()";
 
 
 
-            String delcardst = "SELECT * FROM bank_cards WHERE expiry_date < NOW()";
         try (Statement stdelcard = connection.createStatement();
-             ResultSet resdelcard = stdelcard.executeQuery(delcardst)) {
+             ResultSet resdelcard = stdelcard.executeQuery(delcardst))
+        {
             while (resdelcard.next()) {
+
                 int delcardNumber = resdelcard.getInt("card_number");
                 int delclietntNumber = resdelcard.getInt("client_number");
-                deleteCard(connection,delcardNumber);
-                addDeletedClient(connection, delclietntNumber);
+                deleteCard(connection, delcardNumber);
+
+
+             addDeletedClient(connection, delclietntNumber);
+
+
             }
-
-
 
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
+
         }
+
+
+
+
+
+
+
+
             String newcard = "SELECT DISTINCT client_number FROM carddel";
         try(Statement stnewcard = connection.createStatement();
             ResultSet resnewcard = stnewcard.executeQuery(newcard))
@@ -79,7 +112,7 @@ public class Main {
             {
                 stdeloldid.executeUpdate(deloldid);
             } catch (SQLException e) {
-            throw new RuntimeException(e);
+            e.printStackTrace();
         }
         while (true) {
                 System.out.println("Добавить нового клиента? (Да/Нет)");
@@ -163,21 +196,7 @@ public class Main {
                 }
 
             }
-            Statement statement = connection.createStatement();
-            String createClientsTable = "CREATE TABLE IF NOT EXISTS clients (id INT NOT NULL AUTO_INCREMENT, " +
-                    "client_number INT NOT NULL, full_name VARCHAR(100) NOT NULL, date_of_birth DATE NOT NULL, " +
-                    "email VARCHAR(100) NOT NULL, PRIMARY KEY (id), UNIQUE (client_number));";
 
-            PreparedStatement createClientsTableStmt = connection.prepareStatement(createClientsTable);
-            createClientsTableStmt.executeUpdate();
-
-
-            String createCardsTable = "CREATE TABLE IF NOT EXISTS bank_cards (id INT NOT NULL AUTO_INCREMENT, " +
-                    "client_number INT NOT NULL, card_number INT NOT NULL, issue_date DATE NOT NULL, expiry_date DATE NOT NULL, " +
-                    "PRIMARY KEY (id), UNIQUE (card_number));";
-
-            PreparedStatement createCardsTableStmt = connection.prepareStatement(createCardsTable);
-            createCardsTableStmt.executeUpdate();
 
 
             for (Client client : clientCache.values()) {
@@ -203,6 +222,8 @@ public class Main {
                         insertCardStmt.setDate(4, new java.sql.Date(bankCard.expiryDate.getTime()));
                         insertCardStmt.executeUpdate();
                     }
+
+
                 }
 
             }
@@ -260,18 +281,22 @@ public Map<Integer, BankCard>  findcard(int cardNumber){
 
 
     private static void deleteCard(Connection connection, int cardNumber) throws SQLException {
+
         String sql = "DELETE FROM bank_cards WHERE card_number = ?";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setInt(1, cardNumber);
             statement.executeUpdate();
         }
     }
+    
+           
 
 
 
 
 
     private static void addDeletedClient(Connection connection, int clientNumber) throws SQLException {
+
         String sql = "INSERT INTO carddel (client_number) VALUES (?)";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setInt(1, clientNumber);
@@ -280,7 +305,6 @@ public Map<Integer, BankCard>  findcard(int cardNumber){
     }
     private static void createNewCard(Connection connection, int clientNumber) throws SQLException {
         String newcard = "INSERT INTO bank_cards (client_number, card_number, issue_date, expiry_date) VALUES (?, ?, ?, ?)";
-
         // Случайное число для номера карты
         String cardNumber = generateCardNumber();
 
@@ -292,8 +316,6 @@ public Map<Integer, BankCard>  findcard(int cardNumber){
         calendar.setTime(issueDate);
         calendar.add(Calendar.YEAR, 5);
         java.sql.Date expirationDate = new java.sql.Date(calendar.getTimeInMillis());
-
-        // Вставка новой карты в базу данных
         try (PreparedStatement stnewcard = connection.prepareStatement(newcard)) {
             stnewcard.setInt(1, clientNumber);
             stnewcard.setString(2, cardNumber);
@@ -301,6 +323,8 @@ public Map<Integer, BankCard>  findcard(int cardNumber){
             stnewcard.setDate(4, expirationDate);
             stnewcard.executeUpdate();
         }
+
+
     }
 
     // Метод для генерации случайного номера карты
